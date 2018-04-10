@@ -76,65 +76,46 @@ def create_c3s_alpha_data():
     with open('files_not_in_gws.log', 'r') as fr:
         c3s_files = fr.readlines()
 
-    for c3s_file in c3s_files[0:1]:
+    for c3s_file in c3s_files[1:]:
 
         c3s_file = c3s_file.strip()
         print("c3sfile {}".format(c3s_file))
 
         institute, model, experiment, frequency, realm, table, ensemble, variable, ncfile = parse_filename(c3s_file)
-        print(institute, model, experiment, frequency, realm, table, ensemble, variable, ncfile)
-
         v_version_dir = os.readlink(os.path.join('/', *c3s_file.split('/')[:-2]))
         version = v_version_dir.strip('v')
-        print("version {}".format(version))
-        print("version dir {}".format(v_version_dir))
-
         dataset_dir = os.path.join(GWS_BASEDIR, institute, model, experiment, frequency, realm, table, ensemble, variable)
-        print("dataset dir {}".format(dataset_dir))
 
         # MAKE VARIABLE LEVEL FILES DIRECTORY AND COPY DATA TO FILES DIRECTORY
         dest_files_dir = os.path.join(dataset_dir, 'files', version)
-        print("destination files dir {}".format(dest_files_dir))
-
+        print(dest_files_dir)
         if not os.path.isdir(dest_files_dir):
-            print("{} doesn't exitst creating :: ".format(dest_files_dir))
-            # os.makedirs(dest_files_dir)
+            os.makedirs(dest_files_dir)
 
         dest_file = os.path.join(dest_files_dir, ncfile)
-        print("DESTINATION FILE COPYING {} TO {}".format(c3s_file, dest_file))
-        # shutil.copy(c3s_file, dest_file)
-
-        print "COPIED: %s:%s" % (c3s_file, dest_file)
-
+        shutil.copy(c3s_file, dest_file)
 
         # MAKE A VERSION DIRECTORY AND SYMLINK TO THE FILE IN FILES DIRECTORY
         dest_version_dir = os.path.join(dataset_dir, v_version_dir)
-        print("DESTINATION VERSION DIR {}".format(dest_version_dir))
 
         if not os.path.isdir(dest_version_dir):
-            print("{} doesn't exitst creating :: ".format(dest_version_dir))
-            # os.makedirs(dest_version_dir)
+            os.makedirs(dest_version_dir)
 
         # Create relative version symlink
-        # os.chdir(dest_version_dir)
-        print("CHANGED DIR TO {}".format(dest_version_dir))
-
+        os.chdir(dest_version_dir)
         link_src = os.path.join('../files/', version, ncfile)
         link_name = os.path.join(dest_version_dir, ncfile)
-        if not os.path.islink(link_src):
-            # os.symlink(link_src, link_name)
-            print("Linking {} to source {}".format(link_src, link_name))
-        # MAKE LATEST DIR SYMLINK TO MOST RECENT VERSION
+        if not os.path.islink(link_name):
+            os.symlink(link_src, link_name)
 
-        # os.chdir(dataset_dir)
-        print("CHANGED DIR TO {}".format(dataset_dir))
+        # MAKE LATEST DIR SYMLINK TO MOST RECENT VERSION
+        os.chdir(dataset_dir)
         link_src = v_version_dir
         link_name = 'latest'
-        if not os.path.islink(link_src):
-            # os.symlink(link_src, link_name)
-            print("Linking {} to source {}".format(link_src, link_name))
+        if not os.path.islink(link_name):
+            os.symlink(link_src, link_name)
 
-        afdsafasdf
+
 def parse_filename(filename):
     """
     Routine to parse CMIP5 filename into consituent facets
