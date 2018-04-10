@@ -18,22 +18,51 @@ The group workspace will replicate the file structure of cmip5
 import os, sys, re, glob, time, datetime
 import shutil
 
+
+
 # INCLUDES FACETS <activity>.<output>
 ARCHIVE_BASEDIR = "/badc/cmip5/data/cmip5/output1/"
 GWS_BASEDIR = "/group_workspaces/jasmin2/cp4cds1/data/alpha/c3scmip5/output1/"
 
-#GWS_BASEDIR = "/home/users/rpetrie/cp4cds/cp4cds_cmip5_data_restructure/alpha-data/data/alpha/c3scmip5/output1/"
+# /badc/cmip5/data/cmip5/output1/
+#    BCC/bcc-csm1-1-m/historical/mon/atmos/Amon/r3i1p1/
+#       latest/tasmin/tasmin_Amon_bcc-csm1-1-m_historical_r3i1p1_185001-201212.nc
+# -> ../../files/tasmin_20120709/tasmin_Amon_bcc-csm1-1-m_historical_r3i1p1_185001-201212.nc
+#
+# MOVE TO
+#
+# GWS/
+#    BCC/bcc-csm1-1-m/historical/mon/atmos/Amon/r3i1p1/
+#       tasmin/
+#          files/20120709/tasmin_Amon_bcc-csm1-1-m_historical_r3i1p1_185001-201212.nc
+#  smb:    v20120709/tasmin_Amon_bcc-csm1-1-m_historical_r3i1p1_185001-201212.nc -->  ../files/tasmin_Amon_bcc-csm1-1-m_historical_r3i1p1_185001-201212.nc
+#  smb:    latest --> v20120709
+#  smb:    latest/tasmin_Amon_bcc-csm1-1-m_historical_r3i1p1_185001-201212.nc --> ../files/tasmin_Amon_bcc-csm1-1-m_historical_r3i1p1_185001-201212.nc
 
-#/badc/cmip5/data/cmip5/output1/MPI-M/MPI-ESM-P/piControl/mon/atmos/Amon/r1i1p1/latest/va/
-# va_Amon_MPI-ESM-P_piControl_r1i1p1_221001-221912.nc
 
-#/badc/cmip5/data/cmip5/output1/MPI-M/MPI-ESM-P/piControl/mon/atmos/Amon/r1i1p1/va/files/20001001
-# va_Amon_MPI-ESM-P_piControl_r1i1p1_221001-221912.nc
+def _convert_path(ipath):
 
-#/badc/cmip5/data/cmip5/output1/MPI-M/MPI-ESM-P/piControl/mon/atmos/Amon/r1i1p1/va/v20122121/
-# va_Amon_MPI-ESM-P_piControl_r1i1p1_221001-221912.nc --> ../files/va/va_nc
+    path = ipath.replace(ARCHIVE_BASEDIR, GWS_BASEDIR)
+    path_list = path.split('/')
+    path_list[-3], path_list[-2] = path_list[-2], path_list[-3]
+    gws_path = "/".join(path_list)
 
-#/badc/cmip5/data/cmip5/output1/MPI-M/MPI-ESM-P/piControl/mon/atmos/Amon/r1i1p1/va/latest/ --> v20122121
+    return gws_path
+
+
+def in_cp4cds_gws():
+
+    with open("valid_all_cp4cds_filelist.log") as fr:
+        files = fr.readlines()
+
+    for file in files:
+        file = file.strip()
+        gws_file = _convert_path(file)
+        if not os.path.exists(gws_file):
+            print(file)
+            # with open("valid_cp4cds_files_missing_from_gws.log", "wa+") as fw:
+            #     fw.writelines(file)
+
 
 def create_c3s_alpha_data():
     """
@@ -44,80 +73,68 @@ def create_c3s_alpha_data():
     :param source_basedir: /badc/cmip5
     :param dest_basedir: /group_workspace/jasmin/cp4cds/data/
     """
-    with open('valid_cp4cds_alpha_update.txt', 'r') as fr:
+    with open('files_not_in_gws.log', 'r') as fr:
         c3s_files = fr.readlines()
 
-    for c3s_file in c3s_files:
+    for c3s_file in c3s_files[0:1]:
 
         c3s_file = c3s_file.strip()
+        print("c3sfile {}".format(c3s_file))
 
         institute, model, experiment, frequency, realm, table, ensemble, variable, ncfile = parse_filename(c3s_file)
+        print(institute, model, experiment, frequency, realm, table, ensemble, variable, ncfile)
 
         v_version_dir = os.readlink(os.path.join('/', *c3s_file.split('/')[:-2]))
         version = v_version_dir.strip('v')
+        print("version {}".format(version))
+        print("version dir {}".format(v_version_dir))
 
         dataset_dir = os.path.join(GWS_BASEDIR, institute, model, experiment, frequency, realm, table, ensemble, variable)
+        print("dataset dir {}".format(dataset_dir))
 
         # MAKE VARIABLE LEVEL FILES DIRECTORY AND COPY DATA TO FILES DIRECTORY
         dest_files_dir = os.path.join(dataset_dir, 'files', version)
+        print("destination files dir {}".format(dest_files_dir))
 
         if not os.path.isdir(dest_files_dir):
-            os.makedirs(dest_files_dir)
+            print("{} doesn't exitst creating :: ".format(dest_files_dir))
+            # os.makedirs(dest_files_dir)
 
         dest_file = os.path.join(dest_files_dir, ncfile)
-        shutil.copy(c3s_file, dest_file)
+        print("DESTINATION FILE COPYING {} TO {}".format(c3s_file, dest_file))
+        # shutil.copy(c3s_file, dest_file)
 
         print "COPIED: %s:%s" % (c3s_file, dest_file)
 
 
         # MAKE A VERSION DIRECTORY AND SYMLINK TO THE FILE IN FILES DIRECTORY
         dest_version_dir = os.path.join(dataset_dir, v_version_dir)
+        print("DESTINATION VERSION DIR {}".format(dest_version_dir))
+
         if not os.path.isdir(dest_version_dir):
-            os.makedirs(dest_version_dir)
+            print("{} doesn't exitst creating :: ".format(dest_version_dir))
+            # os.makedirs(dest_version_dir)
 
         # Create relative version symlink
-        os.chdir(dest_version_dir)
-        link_target = os.path.join('../files/', version, ncfile)
-        link_src = os.path.join(dest_version_dir, ncfile)
-        if not os.path.islink(link_src):
-            os.symlink(link_target, link_src)
+        # os.chdir(dest_version_dir)
+        print("CHANGED DIR TO {}".format(dest_version_dir))
 
+        link_src = os.path.join('../files/', version, ncfile)
+        link_name = os.path.join(dest_version_dir, ncfile)
+        if not os.path.islink(link_src):
+            # os.symlink(link_src, link_name)
+            print("Linking {} to source {}".format(link_src, link_name))
         # MAKE LATEST DIR SYMLINK TO MOST RECENT VERSION
 
-        os.chdir(dataset_dir)
-        link_target = v_version_dir
-        link_src = 'latest'
+        # os.chdir(dataset_dir)
+        print("CHANGED DIR TO {}".format(dataset_dir))
+        link_src = v_version_dir
+        link_name = 'latest'
         if not os.path.islink(link_src):
-            os.symlink(link_target, link_src)
-        
+            # os.symlink(link_src, link_name)
+            print("Linking {} to source {}".format(link_src, link_name))
 
-
-
-        # var_version_dir = variable + '_' + version.strip('v')
-        #
-        # # Remove any existing 'latest' directory symlink
-        # if os.path.isdir('latest'):
-        #     os.remove('latest')
-        #
-        # try:
-        #     # Get list of all versions
-        #     version_dirs = [vfile.lstrip('v') for vfile in glob.glob("v????????")]
-        #
-        #     if len(version_dirs) > 1:
-        #         newest = "v" + max([datetime.date(int(v[0:4]), int(v[4:6]), int(v[6:8])) for v in version_dirs]).strftime('%Y%m%d')
-        #         oldest = "v" + min([datetime.date(int(v[0:4]), int(v[4:6]), int(v[6:8])) for v in version_dirs]).strftime('%Y%m%d')
-        #
-        #         # Create a symlink to the newest version
-        #         os.symlink(newest, 'latest')
-        #         os.remove(oldest)
-        #     else:
-        #         os.symlink("v" + version_dirs[0], 'latest')
-        #     print "COMPLETED: %s:%s" % (c3s_file, dest_file)
-        #
-        # except:
-        #     print "VERSIONING ERROR: %s " % c3s_file
-        #
-
+        afdsafasdf
 def parse_filename(filename):
     """
     Routine to parse CMIP5 filename into consituent facets
@@ -131,3 +148,5 @@ def parse_filename(filename):
 
 if __name__ == "__main__":
     create_c3s_alpha_data()
+
+    # in_cp4cds_gws()
