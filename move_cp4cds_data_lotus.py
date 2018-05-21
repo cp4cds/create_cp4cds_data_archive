@@ -17,7 +17,7 @@ The group workspace will replicate the file structure of cmip5
 
 import os, sys, re, glob, time, datetime
 import shutil
-
+from sys import argv
 
 
 # INCLUDES FACETS <activity>.<output>
@@ -64,56 +64,51 @@ def in_cp4cds_gws():
             #     fw.writelines(file)
 
 
-def create_c3s_alpha_data():
+def create_c3s_alpha_data(c3s_file):
     """
     Routine that copies all subset of CMIP5 data to the  CP4CDS GWS
     Using a variable level DRS
     Reconstructs symbolic links and versioning
 
     :param source_basedir: /badc/cmip5
-    :param dest_basedir: /group_workspace/jasmin/cp4cds/data/
+    :param dest_basedir: /group_workspace/jasmin2/cp4cds1/data/
     """
-    with open('files_not_in_gws.log', 'r') as fr:
-        c3s_files = fr.readlines()
+    c3s_file = c3s_file.strip()
+    print("c3sfile {}".format(c3s_file))
 
-    for c3s_file in c3s_files:
+    institute, model, experiment, frequency, realm, table, ensemble, variable, ncfile = parse_filename(c3s_file)
+    v_version_dir = os.readlink(os.path.join('/', *c3s_file.split('/')[:-2]))
+    version = v_version_dir.strip('v')
+    dataset_dir = os.path.join(GWS_BASEDIR, institute, model, experiment, frequency, realm, table, ensemble, variable)
 
-        c3s_file = c3s_file.strip()
-        print("c3sfile {}".format(c3s_file))
+    # MAKE VARIABLE LEVEL FILES DIRECTORY AND COPY DATA TO FILES DIRECTORY
+    dest_files_dir = os.path.join(dataset_dir, 'files', version)
+    print(dest_files_dir)
+    if not os.path.isdir(dest_files_dir):
+        os.makedirs(dest_files_dir)
 
-        institute, model, experiment, frequency, realm, table, ensemble, variable, ncfile = parse_filename(c3s_file)
-        v_version_dir = os.readlink(os.path.join('/', *c3s_file.split('/')[:-2]))
-        version = v_version_dir.strip('v')
-        dataset_dir = os.path.join(GWS_BASEDIR, institute, model, experiment, frequency, realm, table, ensemble, variable)
+    dest_file = os.path.join(dest_files_dir, ncfile)
+    shutil.copy(c3s_file, dest_file)
 
-        # MAKE VARIABLE LEVEL FILES DIRECTORY AND COPY DATA TO FILES DIRECTORY
-        dest_files_dir = os.path.join(dataset_dir, 'files', version)
-        print(dest_files_dir)
-        if not os.path.isdir(dest_files_dir):
-            os.makedirs(dest_files_dir)
+    # MAKE A VERSION DIRECTORY AND SYMLINK TO THE FILE IN FILES DIRECTORY
+    dest_version_dir = os.path.join(dataset_dir, v_version_dir)
 
-        dest_file = os.path.join(dest_files_dir, ncfile)
-        shutil.copy(c3s_file, dest_file)
+    if not os.path.isdir(dest_version_dir):
+        os.makedirs(dest_version_dir)
 
-        # MAKE A VERSION DIRECTORY AND SYMLINK TO THE FILE IN FILES DIRECTORY
-        dest_version_dir = os.path.join(dataset_dir, v_version_dir)
+    # Create relative version symlink
+    os.chdir(dest_version_dir)
+    link_src = os.path.join('../files/', version, ncfile)
+    link_name = os.path.join(dest_version_dir, ncfile)
+    if not os.path.islink(link_name):
+        os.symlink(link_src, link_name)
 
-        if not os.path.isdir(dest_version_dir):
-            os.makedirs(dest_version_dir)
-
-        # Create relative version symlink
-        os.chdir(dest_version_dir)
-        link_src = os.path.join('../files/', version, ncfile)
-        link_name = os.path.join(dest_version_dir, ncfile)
-        if not os.path.islink(link_name):
-            os.symlink(link_src, link_name)
-
-        # MAKE LATEST DIR SYMLINK TO MOST RECENT VERSION
-        os.chdir(dataset_dir)
-        link_src = v_version_dir
-        link_name = 'latest'
-        if not os.path.islink(link_name):
-            os.symlink(link_src, link_name)
+    # MAKE LATEST DIR SYMLINK TO MOST RECENT VERSION
+    os.chdir(dataset_dir)
+    link_src = v_version_dir
+    link_name = 'latest'
+    if not os.path.islink(link_name):
+        os.symlink(link_src, link_name)
 
 
 def parse_filename(filename):
@@ -128,6 +123,7 @@ def parse_filename(filename):
 
 
 if __name__ == "__main__":
-    create_c3s_alpha_data()
+    file = argv[1]
+    create_c3s_alpha_data(file)
 
     # in_cp4cds_gws()
